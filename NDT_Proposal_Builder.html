@@ -1,0 +1,2184 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NDT · Proposal Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --orange:#FF6A00;
+  --orange-dark:#E55F00;
+  --ink:#111111;
+  --muted:#6B7280;
+  --border:#E5E5E5;
+  --soft:#F7F5F2;
+  --bg:#FAFAF7;
+  --card:#FFFFFF;
+  --good:#16A34A;
+  --bad:#DC2626;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Manrope',sans-serif;color:var(--ink);background:var(--bg);font-size:14px;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 12px;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,0,.12)}
+.mono{font-family:'DM Mono',monospace}
+
+/* ── App layout ──────────────────────────────────── */
+.app{max-width:1100px;margin:0 auto;padding:24px 20px 120px}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);margin-bottom:24px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-mark{font-weight:800;font-size:22px;letter-spacing:-.02em}
+.brand-mark span{color:var(--orange)}
+.brand-tag{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase}
+.tool-title{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--orange);text-transform:uppercase}
+
+.header-actions{display:flex;gap:10px;align-items:center}
+.status-badge{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--soft);border-radius:20px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(22,163,74,.15)}
+.status-badge.editing .status-dot{background:var(--orange);box-shadow:0 0 0 3px rgba(255,106,0,.15)}
+
+/* ── Drawer (Recent Quotes) ─────────────────────── */
+.drawer-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
+.drawer-overlay.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-560px;width:540px;max-width:100vw;height:100vh;background:#fff;box-shadow:-10px 0 40px rgba(0,0,0,.15);z-index:201;display:flex;flex-direction:column;transition:right .25s ease-out}
+.drawer.open{right:0}
+.drawer-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.drawer-header h2{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.drawer-close{font-size:22px;color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;background:none;border:none}
+.drawer-close:hover{background:var(--soft);color:var(--ink)}
+.drawer-search{padding:14px 24px;border-bottom:1px solid var(--border)}
+.drawer-search input{width:100%}
+.drawer-body{flex:1;overflow-y:auto;padding:14px 24px}
+.drawer-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+
+.quote-item{display:grid;grid-template-columns:1fr auto;gap:12px;padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+.quote-item:hover{border-color:var(--orange)}
+.quote-item.active{border-color:var(--orange);background:rgba(255,106,0,.04)}
+.quote-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.quote-code{font-family:'DM Mono',monospace;font-size:11px;color:var(--orange);letter-spacing:1px;font-weight:600}
+.quote-client{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quote-client.empty{color:var(--muted);font-weight:500;font-style:italic}
+.quote-info{font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.quote-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:space-between}
+.quote-total{font-weight:700;font-size:14px;color:var(--ink)}
+.quote-actions-row{display:flex;gap:4px}
+.quote-actions-row button{padding:4px 8px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:#fff;color:var(--muted);cursor:pointer}
+.quote-actions-row button:hover{color:var(--ink);border-color:var(--ink)}
+.quote-actions-row button.del:hover{color:var(--bad);border-color:var(--bad)}
+.drawer-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
+
+/* ── Storage banner & indicator ────────────────── */
+.storage-banner{background:linear-gradient(135deg,#FFF4E6,#FFE8CC);border:1px solid #FFB870;border-radius:14px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow)}
+.storage-banner.hidden{display:none}
+.storage-banner-icon{font-size:28px;flex-shrink:0}
+.storage-banner-text{flex:1;font-size:13px;line-height:1.5}
+.storage-banner-text strong{display:block;font-size:14px;margin-bottom:3px;color:var(--ink)}
+.storage-banner-text span{color:#7C3F00}
+.storage-banner-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.storage-banner .btn-primary{background:#7C3F00;border-color:#7C3F00}
+.storage-banner .btn-primary:hover{background:#5A2D00;border-color:#5A2D00}
+
+.storage-indicator{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:var(--soft);border-radius:8px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;border:1px solid transparent;transition:border-color .15s}
+.storage-indicator:hover{border-color:var(--border)}
+.storage-indicator.connected{background:rgba(22,163,74,.08);color:#16A34A}
+.storage-indicator.connected:hover{border-color:#16A34A}
+.storage-indicator.local{color:var(--muted)}
+
+/* ── Sections ────────────────────────────────────── */
+.section{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:var(--shadow)}
+.section-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--orange);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.section-title::before{content:'';width:14px;height:1px;background:var(--orange)}
+.section-sub{font-size:12px;color:var(--muted);margin-bottom:14px;margin-top:-6px}
+
+/* ── Form rows ───────────────────────────────────── */
+.row{display:flex;gap:10px;align-items:stretch}
+.row > *{flex:1}
+.row .qty{flex:0 0 90px}
+.row .btn{flex:0 0 auto}
+label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.field{display:flex;flex-direction:column;gap:0}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* ── Buttons ─────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:8px;font-weight:600;font-size:13px;transition:all .15s;border:1px solid var(--border);background:var(--card);color:var(--ink);white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn-primary{background:var(--orange);color:#fff;border-color:var(--orange)}
+.btn-primary:hover{background:var(--orange-dark);border-color:var(--orange-dark)}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 10px;font-size:12px}
+.btn-ghost:hover{color:var(--bad);border-color:transparent}
+.btn-print{background:var(--ink);color:#fff;border-color:var(--ink);padding:14px 22px;font-size:14px}
+.btn-print:hover{background:#000}
+.btn-sm{padding:6px 12px;font-size:12px}
+
+/* ── Product cards ───────────────────────────────── */
+.products-empty{text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;border:2px dashed var(--border);border-radius:10px}
+.product-card{display:grid;grid-template-columns:80px 1fr auto;gap:14px;padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:#fff;align-items:start}
+.product-card:hover{border-color:#D0D0D0}
+.product-thumb{width:80px;height:80px;border-radius:8px;background:var(--soft);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.product-thumb img{width:100%;height:100%;object-fit:contain}
+.product-thumb-empty{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted)}
+.product-info{display:flex;flex-direction:column;gap:6px;min-width:0}
+.product-info .name-row{display:flex;gap:8px;align-items:center}
+.product-info input[type=text]{padding:6px 8px;font-size:13px}
+.product-info input.name{font-weight:700;font-size:14px}
+.product-info input.desc{font-size:12px;color:var(--muted)}
+.product-info .url{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;display:block}
+.product-info .url:hover{color:var(--orange)}
+.product-meta{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:space-between;min-width:140px}
+.product-meta .price-row{display:flex;gap:6px;align-items:center}
+.product-meta input{width:80px;padding:6px 8px;font-size:13px;text-align:right}
+.product-meta input.qty{width:55px}
+.product-meta .line-total{font-weight:700;font-size:15px;color:var(--ink)}
+.product-loading{padding:14px;border:1px solid var(--border);border-radius:10px;background:#FAFAF7;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Terms ───────────────────────────────────────── */
+.terms-list{display:flex;flex-direction:column;gap:10px}
+.term-row{display:grid;grid-template-columns:140px 1fr auto;gap:10px;align-items:center}
+.term-row input.label{font-weight:600;background:var(--soft)}
+.term-row input.text{font-size:13px}
+
+/* ── Action bar ──────────────────────────────────── */
+.action-bar{position:sticky;bottom:20px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 6px 24px rgba(0,0,0,.08);z-index:50;margin-top:24px}
+.totals-summary{display:flex;flex-direction:column;gap:2px}
+.totals-summary .net{font-size:12px;color:var(--muted)}
+.totals-summary .grand{font-size:20px;font-weight:800;color:var(--ink)}
+.action-bar .actions{display:flex;gap:8px}
+
+/* ── Service cards (simpler than products) ─────── */
+.service-card{display:grid;grid-template-columns:1fr auto;gap:14px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:#fff;align-items:center}
+.service-card:hover{border-color:#D0D0D0}
+.service-info{display:flex;flex-direction:column;gap:6px;min-width:0}
+.service-info input[type=text]{padding:6px 8px;font-size:13px}
+.service-info input.svc-name{font-weight:700;font-size:14px}
+.service-info input.svc-desc{font-size:12px;color:var(--muted)}
+.service-meta{display:flex;flex-direction:column;gap:6px;align-items:flex-end;justify-content:space-between;min-width:200px}
+.service-meta .price-row{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.service-meta input.svc-qty{width:55px;padding:6px 8px;font-size:13px;text-align:right}
+.service-meta select.svc-unit{padding:6px 8px;font-size:12px;width:75px}
+.service-meta input.svc-price{width:80px;padding:6px 8px;font-size:13px;text-align:right}
+.service-meta .line-total{font-weight:700;font-size:15px;color:var(--ink)}
+
+/* ── Toast ───────────────────────────────────────── */
+.toast{position:fixed;top:20px;right:20px;padding:12px 18px;border-radius:8px;background:var(--ink);color:#fff;font-size:13px;font-weight:500;z-index:100;box-shadow:0 6px 24px rgba(0,0,0,.2);animation:slideIn .25s ease-out;max-width:340px}
+.toast.error{background:var(--bad)}
+.toast.warn{background:#D97706}
+.toast.success{background:var(--good)}
+@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── PDF / Print Output ──────────────────────────── */
+.pdf-output{display:none}
+
+@media screen{
+  .pdf-output.preview-on{
+    display:block;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:14px;
+    margin-top:20px;
+    padding:0;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .pdf-output.preview-on .pdf-page{
+    width:100%;
+    max-width:794px;
+    margin:0 auto;
+    padding:0;
+  }
+}
+
+@media print{
+  body{background:#fff}
+  .app > *:not(.pdf-output){display:none !important}
+  .pdf-output{display:block !important}
+  .pdf-page{margin:0 !important;padding:0 !important;box-shadow:none !important}
+  @page{size:A4;margin:0}
+}
+
+/* PDF page styling — matches the original PDF deliverable */
+.pdf-page{
+  font-family:'Manrope',sans-serif;
+  width:210mm;
+  min-height:297mm;
+  background:#fff;
+  color:#111;
+  position:relative;
+  margin:0 auto;
+}
+.pdf-header{
+  background:var(--orange);
+  height:16mm;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 20mm;
+  color:#fff;
+}
+.pdf-header .brand{display:flex;align-items:baseline;gap:10px}
+.pdf-header .brand-name{font-weight:800;font-size:18px}
+.pdf-header .brand-sub{font-size:10px;letter-spacing:1px}
+.pdf-header .meta-id{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px}
+.pdf-body{padding:14mm 20mm 0 20mm}
+.pdf-title{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:4mm}
+.pdf-meta-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:8mm}
+.pdf-meta-cell .lbl{font-size:9px;color:var(--muted);margin-bottom:2px}
+.pdf-meta-cell .val{font-weight:700;font-size:11px}
+.pdf-meta-cell .val.mono{font-family:'DM Mono',monospace}
+.pdf-section-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;margin-bottom:6px}
+
+.pdf-table{width:100%;border-collapse:collapse;margin-bottom:8px}
+.pdf-table th{background:var(--soft);font-size:10px;font-weight:600;color:#444;text-align:left;padding:8px;border-bottom:.5px solid var(--border);border-top:.5px solid var(--border)}
+.pdf-table th.right{text-align:right}
+.pdf-table th.center{text-align:center}
+.pdf-table td{padding:10px 8px;border-bottom:.5px solid var(--border);vertical-align:middle;font-size:11px}
+.pdf-table td.right{text-align:right}
+.pdf-table td.center{text-align:center}
+.pdf-prod-cell{display:flex;gap:10px;align-items:center}
+.pdf-prod-thumb{width:40px;height:40px;border-radius:4px;background:var(--soft);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.pdf-prod-thumb img{width:100%;height:100%;object-fit:contain}
+.pdf-prod-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pdf-prod-name{font-weight:700;font-size:11px;color:#111;text-decoration:none}
+.pdf-prod-name:hover{color:var(--orange)}
+.pdf-prod-desc{font-size:9px;color:var(--muted)}
+
+.pdf-totals{display:flex;flex-direction:column;align-items:flex-end;margin-top:4mm}
+.pdf-totals-row{display:flex;justify-content:space-between;width:65mm;padding:3px 8px;font-size:10px}
+.pdf-totals-row .val{font-weight:700}
+.pdf-grand{
+  background:var(--orange);
+  color:#fff;
+  padding:8px 12px;
+  margin-top:4px;
+  width:170mm;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-weight:800;
+  border-radius:0;
+}
+.pdf-grand .lbl{font-size:11px;letter-spacing:0.5px}
+.pdf-grand .val{font-size:14px}
+.pdf-vat-note{font-size:9px;color:var(--muted);margin-top:4mm}
+
+.pdf-terms{margin-top:6mm}
+.pdf-terms-row{display:grid;grid-template-columns:38mm 1fr;padding:4px 0;border-bottom:.3px solid var(--border);font-size:9.5px}
+.pdf-terms-row:last-child{border-bottom:none}
+.pdf-terms-row .lbl{font-weight:700;color:#111}
+.pdf-terms-row .val{color:#111}
+
+.pdf-closing{margin-top:5mm;font-size:9.5px;color:#111}
+.pdf-closing strong{color:#111}
+.pdf-closing .muted{color:var(--muted)}
+
+.pdf-footer{
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  border-top:.5px solid var(--border);
+  padding:6mm 20mm 5mm 20mm;
+  font-size:8px;
+  color:var(--muted);
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+}
+.pdf-footer-left{display:flex;flex-direction:column;gap:2px}
+.pdf-footer-tag{font-family:'DM Mono',monospace;font-size:7px;color:var(--orange);letter-spacing:2px;text-transform:uppercase}
+
+@media print{
+  .pdf-prod-name{color:var(--orange) !important}
+  .pdf-prod-name[href]{color:var(--orange) !important;text-decoration:underline !important}
+}
+
+/* ── Helpers ─────────────────────────────────────── */
+.mt-12{margin-top:12px}
+.mt-16{margin-top:16px}
+.flex{display:flex}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.gap-8{gap:8px}
+.text-muted{color:var(--muted)}
+.collapse-toggle{cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;font-family:'DM Mono',monospace;letter-spacing:2px;text-transform:uppercase}
+.collapse-toggle:hover{color:var(--ink)}
+.collapsible{max-height:2000px;overflow:hidden;transition:max-height .25s ease}
+.collapsible.collapsed{max-height:0}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark"><span>NDT</span> Event Production</div>
+      <div class="brand-tag">Proposal Builder</div>
+    </div>
+    <div class="header-actions">
+      <div class="storage-indicator local" id="storageIndicator" title="Κατάσταση αποθήκευσης">💾 Browser</div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span id="statusText">Νέα προσφορά</span>
+      </div>
+      <button class="btn btn-sm" id="recentBtn">📂 Πρόσφατες</button>
+      <button class="btn btn-sm" id="newBtn">+ Νέα</button>
+    </div>
+  </header>
+
+  <!-- ── Storage onboarding banner ──────────── -->
+  <div class="storage-banner hidden" id="storageBanner">
+    <div class="storage-banner-icon">📁</div>
+    <div class="storage-banner-text">
+      <strong id="bannerTitle">Σύνδεσε φάκελο για multi-device sync</strong>
+      <span id="bannerMsg">Τα δεδομένα θα σώζονται σε αρχεία μέσα στον φάκελο που θα διαλέξεις (π.χ. Drive folder). Έτσι έχεις πρόσβαση από όλους τους υπολογιστές σου.</span>
+    </div>
+    <div class="storage-banner-actions">
+      <button class="btn btn-primary btn-sm" id="bannerActionBtn">Σύνδεση Φακέλου</button>
+      <button class="btn btn-sm" id="bannerDismissBtn">Όχι τώρα</button>
+    </div>
+  </div>
+
+  <!-- ── Στοιχεία προσφοράς ─────────────────── -->
+  <section class="section">
+    <div class="section-title">Στοιχεία Προσφοράς</div>
+    <div class="grid-3">
+      <div class="field">
+        <label>Πελάτης (προαιρετικό)</label>
+        <input type="text" id="clientName" placeholder="π.χ. Maria Papadopoulos / Acme SA">
+      </div>
+      <div class="field">
+        <label>Τίτλος / Project</label>
+        <input type="text" id="proposalTitle" placeholder="π.χ. Πρόταση Εξοπλισμού">
+      </div>
+      <div class="field">
+        <label>Ισχύς (ημέρες)</label>
+        <input type="number" id="validityDays" value="14" min="1" max="365">
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Προσθήκη προϊόντος ─────────────────── -->
+  <section class="section">
+    <div class="section-title">Προσθήκη Προϊόντος</div>
+    <div class="section-sub">Επικόλλησε το URL της σελίδας του προϊόντος. Η εφαρμογή τραβάει αυτόματα όνομα, εικόνα και τιμή — όλα είναι editable μετά.</div>
+    <div class="row">
+      <input type="url" id="urlInput" placeholder="https://www.shop.gr/product/..." style="flex:1">
+      <input type="number" id="qtyInput" class="qty" value="1" min="1" placeholder="Ποσ.">
+      <button class="btn btn-primary" id="addBtn">Φόρτωση & Προσθήκη</button>
+      <button class="btn" id="manualBtn" title="Προσθήκη χωρίς URL">+ Χειροκίνητα</button>
+    </div>
+    <div id="addStatus" style="margin-top:10px"></div>
+  </section>
+
+  <!-- ── Λίστα προϊόντων ────────────────────── -->
+  <section class="section">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="section-title" style="margin-bottom:0">Προϊόντα</div>
+      <div class="text-muted mono" style="font-size:10px;letter-spacing:2px" id="productCount">0 ΠΡΟΪΟΝΤΑ</div>
+    </div>
+    <div id="productList">
+      <div class="products-empty" id="emptyState">
+        Δεν υπάρχουν προϊόντα ακόμη.<br>Πρόσθεσε το πρώτο από πάνω ↑
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Υπηρεσίες ──────────────────────────── -->
+  <section class="section">
+    <div class="flex-between" style="margin-bottom:14px">
+      <div class="section-title" style="margin-bottom:0">Υπηρεσίες / Εργασίες</div>
+      <div class="text-muted mono" style="font-size:10px;letter-spacing:2px" id="serviceCount">0 ΥΠΗΡΕΣΙΕΣ</div>
+    </div>
+    <div class="section-sub">Εγκατάσταση, ηχοληψία, μεταφορά, ή οποιαδήποτε άλλη υπηρεσία/εργασία.</div>
+    <div id="serviceList">
+      <div class="products-empty" id="serviceEmpty">
+        Δεν υπάρχουν υπηρεσίες ακόμη.
+      </div>
+    </div>
+    <button class="btn btn-sm" id="addServiceBtn" style="margin-top:12px">+ Προσθήκη Υπηρεσίας</button>
+  </section>
+
+  <!-- ── Όροι ──────────────────────────────── -->
+  <section class="section">
+    <div class="flex-between" style="margin-bottom:6px">
+      <div class="section-title" style="margin-bottom:0">Όροι Προσφοράς</div>
+      <button class="collapse-toggle" id="termsToggle">+ Νέος όρος</button>
+    </div>
+    <div class="section-sub">Editable. Σώζονται αυτόματα και θα είναι έτοιμοι για την επόμενη προσφορά.</div>
+    <div class="terms-list" id="termsList"></div>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
+      <button class="btn btn-sm" id="resetTermsBtn">Επαναφορά Default</button>
+      <div class="text-muted" style="font-size:11px">💾 Auto-save</div>
+    </div>
+  </section>
+
+  <!-- ── Στοιχεία brand (collapsible) ───────── -->
+  <section class="section">
+    <div class="flex-between" style="margin-bottom:0">
+      <div class="section-title" style="margin-bottom:0">Στοιχεία Footer</div>
+      <button class="collapse-toggle" id="footerToggle">▾ Εμφάνιση</button>
+    </div>
+    <div class="collapsible collapsed" id="footerSettings" style="margin-top:14px">
+      <div class="grid-2">
+        <div class="field">
+          <label>Όνομα εταιρείας</label>
+          <input type="text" id="brandName" value="NDT Event Production">
+        </div>
+        <div class="field">
+          <label>Τοποθεσία</label>
+          <input type="text" id="brandLocation" value="Θεσσαλονίκη">
+        </div>
+        <div class="field">
+          <label>Tagline (footer)</label>
+          <input type="text" id="brandTagline" value="AV · LIVE · CORPORATE">
+        </div>
+        <div class="field">
+          <label>Όνομα υπογραφής</label>
+          <input type="text" id="signerName" value="Πέτρος Μάλαμας">
+        </div>
+        <div class="field">
+          <label>Τηλέφωνο (προαιρετικό)</label>
+          <input type="text" id="contactPhone" placeholder="π.χ. +30 ...">
+        </div>
+        <div class="field">
+          <label>Email (προαιρετικό)</label>
+          <input type="text" id="contactEmail" placeholder="π.χ. info@ndt.gr">
+        </div>
+        <div class="field" style="grid-column:span 2">
+          <label>Custom Proxy URL <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— για sites με anti-bot protection (π.χ. δικό σου Apps Script)</span></label>
+          <input type="text" id="customProxy" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Action bar ──────────────────────────── -->
+  <div class="action-bar">
+    <div class="totals-summary">
+      <div class="net">Καθαρή <span id="netTotal">0,00</span> € · ΦΠΑ <span id="vatTotal">0,00</span> €</div>
+      <div class="grand">Σύνολο: <span id="grandTotal">0,00</span> €</div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="previewBtn">👁 Preview</button>
+      <button class="btn btn-print" id="printBtn">🖨 Εκτύπωση PDF</button>
+    </div>
+  </div>
+
+  <!-- ── Recent Quotes Drawer ────────────────── -->
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <div class="drawer" id="drawer">
+    <div class="drawer-header">
+      <h2>📂 Πρόσφατες Προσφορές</h2>
+      <button class="drawer-close" id="drawerClose">✕</button>
+    </div>
+    <div class="drawer-search">
+      <input type="text" id="drawerSearch" placeholder="🔍 Αναζήτηση κωδικού ή πελάτη...">
+    </div>
+    <div class="drawer-body" id="drawerBody">
+      <div class="drawer-empty">Καμία προσφορά ακόμη.</div>
+    </div>
+    <div class="drawer-footer">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="exportBtn" title="Κατέβασε όλες τις προσφορές σε JSON">💾 Backup</button>
+        <button class="btn btn-sm" id="importBtn" title="Επαναφορά από JSON αρχείο">📥 Restore</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+      </div>
+      <div class="text-muted" id="quoteCountInfo" style="font-size:11px"></div>
+    </div>
+  </div>
+
+  <!-- ── PDF Output ──────────────────────────── -->
+  <div class="pdf-output" id="pdfOutput">
+    <div class="pdf-page" id="pdfPage">
+      <!-- Header -->
+      <div class="pdf-header">
+        <div class="brand">
+          <div class="brand-name">NDT</div>
+          <div class="brand-sub">EVENT PRODUCTION</div>
+        </div>
+        <div class="meta-id" id="pdfMetaId">ΠΡΟΣΦΟΡΑ · NDT-XXXX</div>
+      </div>
+
+      <!-- Body -->
+      <div class="pdf-body">
+        <div class="pdf-title" id="pdfTitle">Πρόταση Εξοπλισμού</div>
+
+        <div class="pdf-meta-row">
+          <div class="pdf-meta-cell">
+            <div class="lbl">Ημερομηνία</div>
+            <div class="val" id="pdfDate">—</div>
+          </div>
+          <div class="pdf-meta-cell">
+            <div class="lbl">Ισχύς προσφοράς έως</div>
+            <div class="val" id="pdfValid">—</div>
+          </div>
+          <div class="pdf-meta-cell">
+            <div class="lbl">Κωδικός</div>
+            <div class="val mono" id="pdfCode">—</div>
+          </div>
+        </div>
+
+        <div class="pdf-meta-cell" id="pdfClientCell" style="margin-bottom:6mm;display:none">
+          <div class="lbl">Προς</div>
+          <div class="val" id="pdfClient">—</div>
+        </div>
+
+        <div id="pdfProductsBlock">
+          <div class="pdf-section-title">ΕΞΟΠΛΙΣΜΟΣ</div>
+
+          <table class="pdf-table" id="pdfTable">
+            <thead>
+              <tr>
+                <th>Προϊόν</th>
+                <th class="center" style="width:20mm">Ποσ.</th>
+                <th class="right" style="width:25mm">Τιμή/τμχ</th>
+                <th class="right" style="width:30mm">Σύνολο</th>
+              </tr>
+            </thead>
+            <tbody id="pdfTableBody"></tbody>
+          </table>
+        </div>
+
+        <div id="pdfServicesBlock" style="display:none;margin-top:6mm">
+          <div class="pdf-section-title">ΥΠΗΡΕΣΙΕΣ</div>
+
+          <table class="pdf-table">
+            <thead>
+              <tr>
+                <th>Υπηρεσία</th>
+                <th class="center" style="width:20mm">Ποσ.</th>
+                <th class="right" style="width:25mm">Τιμή</th>
+                <th class="right" style="width:30mm">Σύνολο</th>
+              </tr>
+            </thead>
+            <tbody id="pdfServicesBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pdf-totals">
+          <div class="pdf-totals-row"><span>Καθαρή αξία</span><span class="val" id="pdfNet">0,00 €</span></div>
+          <div class="pdf-totals-row"><span>ΦΠΑ 24%</span><span class="val" id="pdfVat">0,00 €</span></div>
+        </div>
+        <div class="pdf-grand">
+          <span class="lbl">ΓΕΝΙΚΟ ΣΥΝΟΛΟ <span style="font-weight:400;font-size:9px">(με ΦΠΑ)</span></span>
+          <span class="val" id="pdfGrand">0,00 €</span>
+        </div>
+        <div class="pdf-vat-note">Όλες οι αναγραφόμενες τιμές περιλαμβάνουν ΦΠΑ 24%.</div>
+
+        <div class="pdf-terms">
+          <div class="pdf-section-title">ΟΡΟΙ ΠΡΟΣΦΟΡΑΣ</div>
+          <div id="pdfTermsBody"></div>
+        </div>
+
+        <div class="pdf-closing">
+          Παραμένουμε στη διάθεσή σας για διευκρινίσεις. — <strong id="pdfSigner">Πέτρος Μάλαμας</strong> <span class="muted" id="pdfSignerCo">· NDT Event Production</span>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="pdf-footer">
+        <div class="pdf-footer-left">
+          <span id="pdfFooterMain">NDT Event Production · Θεσσαλονίκη</span>
+          <span class="pdf-footer-tag" id="pdfFooterTag">AV · LIVE · CORPORATE</span>
+        </div>
+        <div id="pdfFooterContact"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────
+let products = [];          // {id, url, name, image, description, qty, price}
+let services = [];          // {id, name, description, qty, unit, price}
+let terms = [];              // {label, text}
+let nextId = 1;
+let quoteCounter = {date:'', count:0};  // tracks how many quotes generated today
+let currentQuoteId = null;   // null = new quote; string = editing existing
+let currentQuoteCode = null; // preserved code when editing existing quote
+let saveTimer = null;        // debounce handle for autosave
+let isLoadingQuote = false;  // flag to skip autosave during load
+
+const UNITS = ['τμχ', 'ώρες', 'ημέρες', 'πακέτο'];
+
+const DEFAULT_TERMS = [
+  {label:'Ισχύς προσφοράς', text:'Έως {valid} ({days} ημέρες από την ημερομηνία έκδοσης).'},
+  {label:'Διαθεσιμότητα',   text:'Με την επιβεβαίωση. Σε περίπτωση εξάντλησης προτείνεται ισοδύναμη εναλλακτική.'},
+  {label:'Παράδοση',         text:'Παραλαβή από έδρα ή αποστολή με χρέωση παραλήπτη.'},
+  {label:'Πληρωμή',          text:'Προπληρωμή 100% πριν την παράδοση.'},
+  {label:'Εγγύηση',          text:'Εργοστασιακή εγγύηση κατασκευαστή σύμφωνα με την επίσημη πολιτική του.'},
+];
+
+// ─── Storage ────────────────────────────────────────────────────────
+// Three-tier wrapper:
+//   1. File System Access API (best — saves files in user-chosen folder, e.g. Drive)
+//   2. localStorage (fallback when FSA unavailable or not yet connected)
+//   3. window.storage (Claude.ai artifacts environment)
+//
+// File mode requires HTTPS or localhost (won't work via file://).
+// On first run user picks a folder; the handle is saved in IndexedDB so
+// subsequent visits remember the connection (after a permission re-grant).
+
+// ── IndexedDB helpers (for persisting the directory handle) ──
+function _idbOpen(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('ndt-proposal-builder', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('handles');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _idbGet(key){
+  const db = await _idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('handles', 'readonly');
+    const req = tx.objectStore('handles').get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _idbSet(key, val){
+  const db = await _idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('handles', 'readwrite');
+    const req = tx.objectStore('handles').put(val, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+async function _idbDel(key){
+  const db = await _idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('handles', 'readwrite');
+    const req = tx.objectStore('handles').delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+const Storage = {
+  // mode: 'file' | 'local' | 'ws'
+  mode: 'local',
+  dirHandle: null,
+  folderName: null,
+  
+  _hasWS(){ return typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function'; },
+  _hasFSA(){ return typeof window !== 'undefined' && 'showDirectoryPicker' in window; },
+  
+  // Convert a key into a safe filename (and back).
+  _keyToFile(key){
+    if(key.startsWith('quote:')) return 'quote_' + key.slice(6) + '.json';
+    if(key.startsWith('cfg:'))   return 'cfg_'   + key.slice(4) + '.json';
+    return key.replace(/[^a-zA-Z0-9_-]/g, '_') + '.json';
+  },
+  _fileToKey(name){
+    if(!name.endsWith('.json')) return null;
+    const base = name.slice(0, -5);
+    if(base.startsWith('quote_')) return 'quote:' + base.slice(6);
+    if(base.startsWith('cfg_'))   return 'cfg:'   + base.slice(4);
+    return base;
+  },
+  
+  async init(){
+    if(this._hasWS()){ this.mode = 'ws'; return; }
+    
+    // Try to restore previously-connected folder
+    if(this._hasFSA()){
+      try{
+        const handle = await _idbGet('rootDir');
+        if(handle){
+          const perm = await handle.queryPermission({mode:'readwrite'});
+          if(perm === 'granted'){
+            this.mode = 'file';
+            this.dirHandle = handle;
+            this.folderName = handle.name;
+            return;
+          }
+          // Need a re-grant via user gesture; remember handle for prompt
+          this.dirHandle = handle;
+          this.folderName = handle.name;
+          this.mode = 'local';  // until user clicks Reconnect
+          return;
+        }
+      }catch(e){ console.warn('Restore handle failed', e); }
+    }
+    this.mode = 'local';
+  },
+  
+  // Show folder picker; user selects an empty/existing folder.
+  async connectFolder(){
+    if(!this._hasFSA()) throw new Error('FSA-unsupported');
+    const handle = await window.showDirectoryPicker({mode:'readwrite'});
+    // Verify write permission
+    const perm = await handle.requestPermission({mode:'readwrite'});
+    if(perm !== 'granted') throw new Error('permission-denied');
+    await _idbSet('rootDir', handle);
+    this.dirHandle = handle;
+    this.folderName = handle.name;
+    this.mode = 'file';
+    return handle;
+  },
+  
+  // Re-grant permission for previously-connected folder
+  async reconnectFolder(){
+    if(!this.dirHandle) return false;
+    const perm = await this.dirHandle.requestPermission({mode:'readwrite'});
+    if(perm === 'granted'){
+      this.mode = 'file';
+      return true;
+    }
+    return false;
+  },
+  
+  async disconnectFolder(){
+    try{ await _idbDel('rootDir'); }catch(e){}
+    this.dirHandle = null;
+    this.folderName = null;
+    this.mode = 'local';
+  },
+  
+  // ── CRUD ──
+  async get(key){
+    if(this.mode === 'file' && this.dirHandle){
+      try{
+        const fh = await this.dirHandle.getFileHandle(this._keyToFile(key));
+        const f = await fh.getFile();
+        return {key, value: await f.text()};
+      }catch(e){
+        if(e && e.name === 'NotFoundError') return null;
+        console.warn('FS get failed', key, e);
+        // fall through to LS
+      }
+    }
+    if(this.mode === 'ws'){
+      try{ return await window.storage.get(key); }catch(e){}
+    }
+    try{
+      const v = localStorage.getItem(key);
+      return v !== null ? {key, value: v} : null;
+    }catch(e){ return null; }
+  },
+  
+  async set(key, value){
+    if(this.mode === 'file' && this.dirHandle){
+      try{
+        const fh = await this.dirHandle.getFileHandle(this._keyToFile(key), {create:true});
+        const w = await fh.createWritable();
+        await w.write(value);
+        await w.close();
+        return {key, value};
+      }catch(e){
+        console.warn('FS set failed', key, e);
+      }
+    }
+    if(this.mode === 'ws'){
+      try{ return await window.storage.set(key, value); }catch(e){}
+    }
+    try{ localStorage.setItem(key, value); return {key, value}; }catch(e){ return null; }
+  },
+  
+  async delete(key){
+    if(this.mode === 'file' && this.dirHandle){
+      try{
+        await this.dirHandle.removeEntry(this._keyToFile(key));
+        return {key, deleted:true};
+      }catch(e){
+        if(!e || e.name !== 'NotFoundError') console.warn('FS delete failed', key, e);
+      }
+    }
+    if(this.mode === 'ws'){
+      try{ return await window.storage.delete(key); }catch(e){}
+    }
+    try{ localStorage.removeItem(key); return {key, deleted:true}; }catch(e){ return null; }
+  },
+  
+  async list(prefix){
+    if(this.mode === 'file' && this.dirHandle){
+      try{
+        const keys = [];
+        for await (const entry of this.dirHandle.values()){
+          if(entry.kind !== 'file') continue;
+          const k = this._fileToKey(entry.name);
+          if(!k) continue;
+          if(!prefix || k.startsWith(prefix)) keys.push(k);
+        }
+        return {keys};
+      }catch(e){
+        console.warn('FS list failed', e);
+      }
+    }
+    if(this.mode === 'ws'){
+      try{ return await window.storage.list(prefix); }catch(e){}
+    }
+    try{
+      const keys = [];
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if(!prefix || k.startsWith(prefix)) keys.push(k);
+      }
+      return {keys};
+    }catch(e){ return {keys:[]}; }
+  }
+};
+
+// Migrate all localStorage data to the connected folder (one-time)
+async function migrateLocalToFolder(){
+  if(Storage.mode !== 'file') return {migrated: 0};
+  let migrated = 0;
+  const keys = [];
+  for(let i = 0; i < localStorage.length; i++){
+    const k = localStorage.key(i);
+    if(k && (k.startsWith('quote:') || k.startsWith('cfg:') || k === 'terms' || k === 'quoteCounter')){
+      keys.push(k);
+    }
+  }
+  for(const k of keys){
+    const v = localStorage.getItem(k);
+    if(v != null){
+      try{ await Storage.set(k, v); migrated++; }catch(e){ console.warn('migrate', k, e); }
+    }
+  }
+  return {migrated, total: keys.length};
+}
+
+async function loadSettings(){
+  try{
+    const t = await Storage.get('terms');
+    if(t) terms = JSON.parse(t.value);
+    else terms = JSON.parse(JSON.stringify(DEFAULT_TERMS));
+  }catch(e){ terms = JSON.parse(JSON.stringify(DEFAULT_TERMS)); }
+  
+  // Load brand fields
+  for(const k of ['brandName','brandLocation','brandTagline','signerName','contactPhone','contactEmail','customProxy']){
+    try{
+      const v = await Storage.get('cfg:'+k);
+      if(v && v.value) document.getElementById(k).value = v.value;
+    }catch(e){}
+  }
+  
+  // Load quote counter
+  try{
+    const c = await Storage.get('quoteCounter');
+    if(c && c.value) quoteCounter = JSON.parse(c.value);
+  }catch(e){}
+}
+async function saveTerms(){
+  try{ await Storage.set('terms', JSON.stringify(terms)); }catch(e){}
+}
+async function saveCfg(k,v){
+  try{ await Storage.set('cfg:'+k, v); }catch(e){}
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = n => (Math.round(n*100)/100).toFixed(2).replace('.',',');
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function gr(d){const x=new Date(d);return x.getDate().toString().padStart(2,'0')+'/'+(x.getMonth()+1).toString().padStart(2,'0')+'/'+x.getFullYear();}
+function addDays(days){const d=new Date();d.setDate(d.getDate()+days);return d;}
+function todayKey(){
+  const d=new Date();
+  return d.getFullYear()+(d.getMonth()+1).toString().padStart(2,'0')+d.getDate().toString().padStart(2,'0');
+}
+function generateCode(){
+  // NDT QUOTE 20260507  (1st of the day)
+  // NDT QUOTE 20260507-1  (2nd of the day)
+  // NDT QUOTE 20260507-2  (3rd of the day)
+  const today = todayKey();
+  if(quoteCounter.date !== today){
+    // First quote of today (will be incremented after print)
+    return 'NDT QUOTE ' + today;
+  }
+  // We've already generated quoteCounter.count quotes today
+  // The next one (this one) gets suffix -count (where count starts at 1)
+  if(quoteCounter.count === 0) return 'NDT QUOTE ' + today;
+  return 'NDT QUOTE ' + today + '-' + quoteCounter.count;
+}
+async function incrementQuoteCounter(){
+  const today = todayKey();
+  if(quoteCounter.date !== today){
+    quoteCounter = {date: today, count: 1};
+  } else {
+    quoteCounter.count++;
+  }
+  try{ await Storage.set('quoteCounter', JSON.stringify(quoteCounter)); }catch(e){}
+}
+
+// ─── Quote Storage ──────────────────────────────────────────────────
+function newQuoteId(){
+  return 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function isQuoteEmpty(){
+  return products.length === 0 && services.length === 0 &&
+         !$('clientName').value.trim() && !$('proposalTitle').value.trim();
+}
+
+function snapshotQuote(){
+  return {
+    id: currentQuoteId,
+    code: currentQuoteCode || generateCode(),
+    client: $('clientName').value || '',
+    title: $('proposalTitle').value || '',
+    validityDays: parseInt($('validityDays').value) || 14,
+    products: JSON.parse(JSON.stringify(products)),
+    services: JSON.parse(JSON.stringify(services)),
+    terms: JSON.parse(JSON.stringify(terms)),
+    grand: products.reduce((s,p)=>s+p.qty*p.price,0) + services.reduce((s,x)=>s+x.qty*x.price,0),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function saveCurrentQuote(){
+  if(isLoadingQuote) return;
+  if(isQuoteEmpty()) return;  // don't save empty drafts
+  
+  // First-time save: assign id, code (and bump counter so next draft gets next suffix)
+  let isFirstSave = false;
+  if(!currentQuoteId){
+    currentQuoteId = newQuoteId();
+    isFirstSave = true;
+  }
+  if(!currentQuoteCode){
+    currentQuoteCode = generateCode();
+    if(isFirstSave){
+      // Reserve this code so next new draft gets the next suffix
+      await incrementQuoteCounter();
+    }
+  }
+  
+  // Capture id locally — guards against currentQuoteId being reset
+  // by newQuote() while we're awaiting Storage operations.
+  const id = currentQuoteId;
+  const snap = snapshotQuote();
+  
+  if(!snap.createdAt){
+    // Try to read existing createdAt to preserve it
+    try{
+      const existing = await Storage.get('quote:'+id);
+      if(existing && existing.value){
+        const old = JSON.parse(existing.value);
+        snap.createdAt = old.createdAt || snap.updatedAt;
+      } else {
+        snap.createdAt = snap.updatedAt;
+      }
+    }catch(e){ snap.createdAt = snap.updatedAt; }
+  }
+  
+  try{
+    await Storage.set('quote:'+id, JSON.stringify(snap));
+    // Only update badge if this save's id matches the currently-active quote
+    if(id === currentQuoteId) updateStatusBadge();
+  }catch(e){
+    console.warn('Save failed', e);
+  }
+}
+
+function scheduleSave(){
+  if(isLoadingQuote) return;
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveCurrentQuote(); }, 600);
+}
+
+async function loadQuote(id){
+  try{
+    const r = await Storage.get('quote:'+id);
+    if(!r) return false;
+    const q = JSON.parse(r.value);
+    
+    isLoadingQuote = true;
+    
+    currentQuoteId = q.id || id;
+    currentQuoteCode = q.code || null;
+    products = q.products || [];
+    services = q.services || [];
+    terms = q.terms || JSON.parse(JSON.stringify(DEFAULT_TERMS));
+    
+    // Re-assign nextId so we don't collide
+    const allIds = [...products.map(p=>p.id), ...services.map(s=>s.id)];
+    if(allIds.length) nextId = Math.max(...allIds) + 1;
+    
+    $('clientName').value = q.client || '';
+    $('proposalTitle').value = q.title || '';
+    $('validityDays').value = q.validityDays || 14;
+    
+    renderTerms();
+    renderAll();
+    updateStatusBadge();
+    
+    isLoadingQuote = false;
+    return true;
+  }catch(e){
+    console.error(e);
+    isLoadingQuote = false;
+    return false;
+  }
+}
+
+async function deleteQuote(id){
+  try{
+    await Storage.delete('quote:'+id);
+    if(id === currentQuoteId){
+      // Was editing this; reset to new
+      newQuote();
+    }
+  }catch(e){
+    console.error(e);
+  }
+}
+
+async function listQuotes(){
+  try{
+    const r = await Storage.list('quote:');
+    if(!r || !r.keys) return [];
+    const quotes = [];
+    for(const key of r.keys){
+      try{
+        const v = await Storage.get(key);
+        if(v && v.value) quotes.push(JSON.parse(v.value));
+      }catch(e){}
+    }
+    // Sort: most recently updated first
+    quotes.sort((a,b) => (b.updatedAt||'').localeCompare(a.updatedAt||''));
+    return quotes;
+  }catch(e){
+    console.error(e);
+    return [];
+  }
+}
+
+async function newQuote(){
+  // Save current first (await — must complete before reset)
+  if(!isQuoteEmpty()){
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+    await saveCurrentQuote();
+  }
+  
+  isLoadingQuote = true;
+  
+  currentQuoteId = null;
+  currentQuoteCode = null;
+  products = [];
+  services = [];
+  terms = JSON.parse(JSON.stringify(DEFAULT_TERMS));
+  nextId = 1;
+  
+  $('clientName').value = '';
+  $('proposalTitle').value = '';
+  $('validityDays').value = '14';
+  
+  renderTerms();
+  renderAll();
+  updateStatusBadge();
+  
+  isLoadingQuote = false;
+  
+  toast('Νέα προσφορά', 'success');
+}
+
+async function duplicateQuote(id){
+  const r = await Storage.get('quote:'+id);
+  if(!r) return;
+  const q = JSON.parse(r.value);
+  
+  isLoadingQuote = true;
+  currentQuoteId = null;  // new id will be assigned on save
+  currentQuoteCode = null;  // new code on next save/print
+  products = q.products || [];
+  services = q.services || [];
+  terms = q.terms || JSON.parse(JSON.stringify(DEFAULT_TERMS));
+  
+  const allIds = [...products.map(p=>p.id), ...services.map(s=>s.id)];
+  if(allIds.length) nextId = Math.max(...allIds) + 1;
+  
+  $('clientName').value = q.client || '';
+  $('proposalTitle').value = q.title || '';
+  $('validityDays').value = q.validityDays || 14;
+  
+  renderTerms();
+  renderAll();
+  updateStatusBadge();
+  isLoadingQuote = false;
+  
+  scheduleSave();  // creates new entry
+  toast('Δημιουργήθηκε αντίγραφο', 'success');
+}
+
+function updateStatusBadge(){
+  const badge = $('statusBadge');
+  const text = $('statusText');
+  if(currentQuoteId && currentQuoteCode){
+    badge.classList.add('editing');
+    text.textContent = 'Edit: ' + currentQuoteCode;
+  } else {
+    badge.classList.remove('editing');
+    text.textContent = 'Νέα προσφορά';
+  }
+}
+
+function escapeHtml(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function toast(msg, type='success'){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast '+type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
+}
+
+// ─── URL Fetching & Parsing ─────────────────────────────────────────
+const PROXIES = [
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+];
+
+function getProxies(){
+  // If user has set a custom proxy (Apps Script), prepend it
+  const custom = (document.getElementById('customProxy')?.value || '').trim();
+  const list = [...PROXIES];
+  if(custom){
+    list.unshift(url => custom + (custom.includes('?') ? '&' : '?') + 'url=' + encodeURIComponent(url));
+  }
+  return list;
+}
+
+function looksBlocked(html){
+  if(!html || html.length < 200) return true;
+  const head = html.slice(0, 4000).toLowerCase();
+  // Common anti-bot signatures
+  if(head.includes('cf-browser-verification') ||
+     head.includes('checking your browser') ||
+     head.includes('attention required') ||
+     head.includes('access denied') ||
+     head.includes('forbidden')) return true;
+  return false;
+}
+
+async function fetchURL(url){
+  let lastErr;
+  for(const proxy of getProxies()){
+    try{
+      const res = await fetch(proxy(url), {method:'GET'});
+      if(!res.ok){
+        if(res.status === 403) throw new Error('blocked-403');
+        throw new Error('HTTP '+res.status);
+      }
+      const html = await res.text();
+      if(looksBlocked(html)) throw new Error('blocked-content');
+      return html;
+    }catch(e){
+      lastErr = e;
+      console.warn('proxy failed', e);
+    }
+  }
+  throw lastErr || new Error('All proxies failed');
+}
+
+function parseProductHTML(html, sourceUrl){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const data = {name:'', image:'', description:'', price:null};
+  
+  const meta = (sel, attr='content') => {
+    const el = doc.querySelector(sel);
+    return el ? (el.getAttribute(attr) || '').trim() : '';
+  };
+  
+  // ── Name ──
+  data.name = meta('meta[property="og:title"]')
+    || meta('meta[name="twitter:title"]')
+    || meta('meta[itemprop="name"]')
+    || (doc.querySelector('h1')?.textContent || '').trim()
+    || (doc.querySelector('title')?.textContent || '').trim();
+  
+  // Trim sometimes-suffixed " | Site Name" patterns
+  data.name = data.name.replace(/\s*[|·–—-]\s*[^|·–—-]+$/, '').trim();
+  
+  // ── Image ──
+  data.image = meta('meta[property="og:image:secure_url"]')
+    || meta('meta[property="og:image"]')
+    || meta('meta[name="twitter:image"]')
+    || meta('meta[itemprop="image"]');
+  
+  if(!data.image){
+    // Find first reasonably-sized image in product area
+    const imgs = doc.querySelectorAll('img');
+    for(const img of imgs){
+      const src = img.getAttribute('src') || img.getAttribute('data-src');
+      if(src && !src.startsWith('data:')){
+        const w = parseInt(img.getAttribute('width')||'0');
+        if(w >= 100 || (img.className && /product|main/i.test(img.className))){
+          data.image = src; break;
+        }
+      }
+    }
+    if(!data.image){
+      const img = doc.querySelector('img[src]');
+      if(img) data.image = img.getAttribute('src');
+    }
+  }
+  
+  // Resolve relative image URL
+  if(data.image){
+    try{ data.image = new URL(data.image, sourceUrl).href; }catch(e){}
+  }
+  
+  // ── Description ──
+  data.description = meta('meta[property="og:description"]')
+    || meta('meta[name="description"]')
+    || meta('meta[itemprop="description"]');
+  
+  // ── Price ──
+  let priceStr = meta('meta[property="og:price:amount"]')
+    || meta('meta[property="product:price:amount"]')
+    || meta('meta[itemprop="price"]', 'content')
+    || meta('meta[itemprop="price"]');
+  
+  // JSON-LD parse
+  if(!priceStr){
+    const ldNodes = doc.querySelectorAll('script[type="application/ld+json"]');
+    for(const node of ldNodes){
+      try{
+        let json = JSON.parse(node.textContent);
+        const list = Array.isArray(json) ? json : [json];
+        for(const obj of list){
+          // Could be Graph wrapper
+          const items = obj['@graph'] || [obj];
+          for(const it of items){
+            if(!it) continue;
+            if(it['@type']==='Product' || (Array.isArray(it['@type'])&&it['@type'].includes('Product'))){
+              if(!data.name && it.name) data.name = it.name;
+              if(!data.image && it.image) data.image = Array.isArray(it.image)?it.image[0]:it.image;
+              if(!data.description && it.description) data.description = it.description;
+              if(it.offers){
+                const off = Array.isArray(it.offers)?it.offers[0]:it.offers;
+                if(off && off.price) priceStr = off.price;
+              }
+            }
+          }
+        }
+      }catch(e){}
+    }
+  }
+  
+  if(priceStr){
+    // Greek format: "1.234,56" or "1234,56" or "1234.56"
+    const cleaned = String(priceStr).replace(/[^\d,.]/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.');
+    const n = parseFloat(cleaned);
+    if(!isNaN(n)) data.price = n;
+  }
+  
+  // Truncate description
+  if(data.description && data.description.length > 160){
+    data.description = data.description.slice(0, 157).trim() + '...';
+  }
+  
+  return data;
+}
+
+// ─── Add product ────────────────────────────────────────────────────
+function nameFromURL(url){
+  try{
+    const u = new URL(url);
+    // Take last meaningful path segment, replace dashes/underscores with spaces, title-case
+    const segs = u.pathname.split('/').filter(Boolean);
+    let slug = segs.length ? segs[segs.length-1] : u.hostname;
+    // Strip extension/query
+    slug = slug.replace(/\.[a-z]+$/i, '').split('?')[0];
+    // Decode URI components and replace separators
+    slug = decodeURIComponent(slug).replace(/[-_+]+/g, ' ').trim();
+    // Title-case (first letter of each word)
+    slug = slug.replace(/\b\w/g, c => c.toUpperCase());
+    return slug;
+  }catch(e){ return ''; }
+}
+
+async function addProductFromURL(url, qty){
+  const statusEl = $('addStatus');
+  statusEl.innerHTML = '<div class="product-loading"><div class="spinner"></div>Φόρτωση από ' + escapeHtml(new URL(url).hostname) + '...</div>';
+  
+  try{
+    const html = await fetchURL(url);
+    const data = parseProductHTML(html, url);
+    
+    if(!data.name){
+      throw new Error('no-name');
+    }
+    
+    products.push({
+      id: nextId++,
+      url,
+      name: data.name,
+      image: data.image || '',
+      description: data.description || '',
+      qty: qty || 1,
+      price: data.price ?? 0,
+    });
+    
+    statusEl.innerHTML = '';
+    if(data.price === null || data.price === 0){
+      toast('Φορτώθηκε χωρίς τιμή — βάλε την χειροκίνητα', 'warn');
+    } else {
+      toast('Φορτώθηκε: ' + data.name.slice(0, 60), 'success');
+    }
+    renderAll();
+  }catch(e){
+    console.error(e);
+    statusEl.innerHTML = '';
+    
+    // Pre-fill name from URL slug as helpful fallback
+    products.push({
+      id: nextId++,
+      url,
+      name: nameFromURL(url),
+      image: '',
+      description: '',
+      qty: qty || 1,
+      price: 0,
+    });
+    renderAll();
+    
+    // Specific message based on error type
+    const msg = String(e.message || e);
+    if(msg.includes('blocked-403') || msg.includes('blocked-content')){
+      toast('⚠️ Το site έχει anti-bot protection. Συμπλήρωσε χειροκίνητα παρακάτω, ή στήσε δικό σου proxy (δες οδηγίες).', 'warn');
+    } else if(msg.includes('no-name')){
+      toast('⚠️ Δεν βρέθηκαν στοιχεία στο HTML. Συμπλήρωσε χειροκίνητα.', 'warn');
+    } else {
+      toast('⚠️ Αποτυχία φόρτωσης. Συμπλήρωσε χειροκίνητα.', 'warn');
+    }
+  }
+}
+
+function addEmptyProduct(url='', qty=1){
+  products.push({
+    id: nextId++,
+    url: url || '',
+    name: '',
+    image: '',
+    description: '',
+    qty: qty || 1,
+    price: 0,
+  });
+  renderAll();
+}
+
+function removeProduct(id){
+  products = products.filter(p => p.id !== id);
+  renderAll();
+}
+
+function updateProduct(id, field, value){
+  const p = products.find(x => x.id === id);
+  if(!p) return;
+  if(field === 'qty' || field === 'price'){
+    const n = parseFloat(String(value).replace(',','.'));
+    p[field] = isNaN(n) ? 0 : n;
+  } else {
+    p[field] = value;
+  }
+  renderTotals();
+  renderPDF();
+  scheduleSave();
+}
+
+// ─── Services CRUD ──────────────────────────────────────────────────
+function addService(){
+  services.push({
+    id: nextId++,
+    name: '',
+    description: '',
+    qty: 1,
+    unit: 'τμχ',
+    price: 0,
+  });
+  renderServices();
+  renderTotals();
+  renderPDF();
+  scheduleSave();
+}
+function removeService(id){
+  services = services.filter(s => s.id !== id);
+  renderServices();
+  renderTotals();
+  renderPDF();
+  scheduleSave();
+}
+function updateService(id, field, value){
+  const s = services.find(x => x.id === id);
+  if(!s) return;
+  if(field === 'qty' || field === 'price'){
+    const n = parseFloat(String(value).replace(',','.'));
+    s[field] = isNaN(n) ? 0 : n;
+  } else {
+    s[field] = value;
+  }
+  renderTotals();
+  renderPDF();
+  scheduleSave();
+}
+
+// ─── Rendering ──────────────────────────────────────────────────────
+function renderProducts(){
+  const list = $('productList');
+  $('productCount').textContent = products.length + ' ΠΡΟΪΟΝ' + (products.length === 1 ? '' : 'ΤΑ');
+  
+  if(products.length === 0){
+    list.innerHTML = '<div class="products-empty">Δεν υπάρχουν προϊόντα ακόμη.<br>Πρόσθεσε το πρώτο από πάνω ↑</div>';
+    return;
+  }
+  
+  list.innerHTML = products.map(p => {
+    const total = p.qty * p.price;
+    const thumb = p.image
+      ? `<img src="${escapeHtml(p.image)}" onerror="this.style.display='none';this.parentNode.innerHTML='<div class=\\'product-thumb-empty\\'>NO IMG</div>'">`
+      : `<div class="product-thumb-empty">NO IMG</div>`;
+    return `
+      <div class="product-card" data-id="${p.id}">
+        <div class="product-thumb">${thumb}</div>
+        <div class="product-info">
+          <input type="text" class="name" placeholder="Όνομα προϊόντος" value="${escapeHtml(p.name)}" data-field="name">
+          <input type="text" class="desc" placeholder="Περιγραφή (π.χ. Κονσόλα ήχου 6 καναλιών)" value="${escapeHtml(p.description)}" data-field="description">
+          <input type="text" class="desc" placeholder="URL εικόνας (προαιρετικό)" value="${escapeHtml(p.image)}" data-field="image">
+          ${p.url ? `<a href="${escapeHtml(p.url)}" class="url" target="_blank">${escapeHtml(p.url)}</a>` : ''}
+        </div>
+        <div class="product-meta">
+          <div class="price-row">
+            <input type="number" class="qty" min="1" value="${p.qty}" data-field="qty"> ×
+            <input type="text" inputmode="decimal" value="${fmt(p.price)}" data-field="price"> €
+          </div>
+          <div class="line-total">${fmt(total)} €</div>
+          <button class="btn-ghost" data-action="remove">✕ Διαγραφή</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // Attach listeners
+  list.querySelectorAll('.product-card').forEach(card => {
+    const id = parseInt(card.dataset.id);
+    card.querySelectorAll('input[data-field]').forEach(input => {
+      input.addEventListener('change', e => {
+        updateProduct(id, e.target.dataset.field, e.target.value);
+        if(e.target.dataset.field === 'image') renderProducts();
+      });
+      if(input.dataset.field === 'qty' || input.dataset.field === 'price'){
+        input.addEventListener('input', e => updateProduct(id, e.target.dataset.field, e.target.value));
+      }
+    });
+    card.querySelector('[data-action="remove"]').addEventListener('click', () => removeProduct(id));
+  });
+}
+
+function renderServices(){
+  const list = $('serviceList');
+  $('serviceCount').textContent = services.length + ' ΥΠΗΡΕΣΙ' + (services.length === 1 ? 'Α' : 'ΕΣ');
+  
+  if(services.length === 0){
+    list.innerHTML = '<div class="products-empty">Δεν υπάρχουν υπηρεσίες ακόμη.</div>';
+    return;
+  }
+  
+  list.innerHTML = services.map(s => {
+    const total = s.qty * s.price;
+    const unitOpts = UNITS.map(u => `<option value="${u}"${u===s.unit?' selected':''}>${u}</option>`).join('');
+    return `
+      <div class="service-card" data-id="${s.id}">
+        <div class="service-info">
+          <input type="text" class="svc-name" placeholder="π.χ. Ηχοληψία / Εγκατάσταση / Μεταφορά" value="${escapeHtml(s.name)}" data-field="name">
+          <input type="text" class="svc-desc" placeholder="Περιγραφή (προαιρετικό)" value="${escapeHtml(s.description)}" data-field="description">
+        </div>
+        <div class="service-meta">
+          <div class="price-row">
+            <input type="number" class="svc-qty" min="0.5" step="0.5" value="${s.qty}" data-field="qty">
+            <select class="svc-unit" data-field="unit">${unitOpts}</select>
+            ×
+            <input type="text" class="svc-price" inputmode="decimal" value="${fmt(s.price)}" data-field="price"> €
+          </div>
+          <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+            <button class="btn-ghost" data-action="remove">✕ Διαγραφή</button>
+            <div class="line-total">${fmt(total)} €</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  list.querySelectorAll('.service-card').forEach(card => {
+    const id = parseInt(card.dataset.id);
+    card.querySelectorAll('input[data-field],select[data-field]').forEach(input => {
+      input.addEventListener('change', e => {
+        updateService(id, e.target.dataset.field, e.target.value);
+        if(e.target.dataset.field === 'qty' || e.target.dataset.field === 'price'){
+          // Re-render to update line total display
+          renderServices();
+        }
+      });
+      if(input.dataset.field === 'qty' || input.dataset.field === 'price'){
+        input.addEventListener('input', e => updateService(id, e.target.dataset.field, e.target.value));
+      }
+    });
+    card.querySelector('[data-action="remove"]').addEventListener('click', () => removeService(id));
+  });
+}
+
+function renderTerms(){
+  const list = $('termsList');
+  list.innerHTML = terms.map((t, i) => `
+    <div class="term-row" data-idx="${i}">
+      <input type="text" class="label" value="${escapeHtml(t.label)}" data-field="label">
+      <input type="text" class="text" value="${escapeHtml(t.text)}" data-field="text">
+      <button class="btn-ghost" data-action="remove">✕</button>
+    </div>
+  `).join('');
+  
+  list.querySelectorAll('.term-row').forEach(row => {
+    const idx = parseInt(row.dataset.idx);
+    row.querySelectorAll('input').forEach(input => {
+      input.addEventListener('change', e => {
+        terms[idx][e.target.dataset.field] = e.target.value;
+        saveTerms();
+        renderPDF();
+        scheduleSave();
+      });
+    });
+    row.querySelector('[data-action="remove"]').addEventListener('click', () => {
+      terms.splice(idx, 1);
+      saveTerms();
+      renderTerms();
+      renderPDF();
+      scheduleSave();
+    });
+  });
+}
+
+function renderTotals(){
+  const productsTotal = products.reduce((s,p) => s + p.qty * p.price, 0);
+  const servicesTotal = services.reduce((s,x) => s + x.qty * x.price, 0);
+  const grand = productsTotal + servicesTotal;
+  const net = grand / 1.24;
+  const vat = grand - net;
+  $('netTotal').textContent = fmt(net);
+  $('vatTotal').textContent = fmt(vat);
+  $('grandTotal').textContent = fmt(grand);
+}
+
+function renderPDF(){
+  const today = new Date();
+  const validityDays = parseInt($('validityDays').value) || 14;
+  const validUntil = addDays(validityDays);
+  // Editing existing quote → preserve original code; new quote → generate
+  const code = currentQuoteCode || generateCode();
+  
+  // Title & meta
+  $('pdfTitle').textContent = $('proposalTitle').value || 'Πρόταση Εξοπλισμού';
+  $('pdfDate').textContent = gr(today);
+  $('pdfValid').textContent = gr(validUntil);
+  $('pdfCode').textContent = code;
+  $('pdfMetaId').textContent = code;
+  
+  // Client
+  const client = $('clientName').value.trim();
+  if(client){
+    $('pdfClientCell').style.display = 'block';
+    $('pdfClient').textContent = client;
+  } else {
+    $('pdfClientCell').style.display = 'none';
+  }
+  
+  // Brand / signer / footer
+  $('pdfSigner').textContent = $('signerName').value || 'Πέτρος Μάλαμας';
+  $('pdfSignerCo').textContent = '· ' + ($('brandName').value || 'NDT Event Production');
+  $('pdfFooterMain').textContent = ($('brandName').value || 'NDT Event Production') + ' · ' + ($('brandLocation').value || 'Θεσσαλονίκη');
+  $('pdfFooterTag').textContent = $('brandTagline').value || 'AV · LIVE · CORPORATE';
+  
+  const phone = $('contactPhone').value.trim();
+  const email = $('contactEmail').value.trim();
+  const contactParts = [];
+  if(phone) contactParts.push(phone);
+  if(email) contactParts.push(email);
+  $('pdfFooterContact').textContent = contactParts.join(' · ');
+  
+  // Products + Services totals
+  const productsTotal = products.reduce((s,p) => s + p.qty * p.price, 0);
+  const servicesTotal = services.reduce((s,x) => s + x.qty * x.price, 0);
+  const grand = productsTotal + servicesTotal;
+  const net = grand / 1.24;
+  const vat = grand - net;
+  
+  // Show/hide blocks based on what's present
+  $('pdfProductsBlock').style.display = products.length ? 'block' : 'none';
+  $('pdfServicesBlock').style.display = services.length ? 'block' : 'none';
+  
+  $('pdfTableBody').innerHTML = products.map(p => {
+    const total = p.qty * p.price;
+    const thumbHtml = p.image
+      ? `<div class="pdf-prod-thumb"><img src="${escapeHtml(p.image)}" onerror="this.style.display='none'"></div>`
+      : `<div class="pdf-prod-thumb"></div>`;
+    const nameLink = p.url
+      ? `<a href="${escapeHtml(p.url)}" class="pdf-prod-name" target="_blank">${escapeHtml(p.name)}</a>`
+      : `<span class="pdf-prod-name">${escapeHtml(p.name)}</span>`;
+    return `
+      <tr>
+        <td>
+          <div class="pdf-prod-cell">
+            ${thumbHtml}
+            <div class="pdf-prod-info">
+              ${nameLink}
+              ${p.description ? `<div class="pdf-prod-desc">${escapeHtml(p.description)}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="center">${p.qty}</td>
+        <td class="right">${fmt(p.price)} €</td>
+        <td class="right"><strong>${fmt(total)} €</strong></td>
+      </tr>
+    `;
+  }).join('');
+  
+  // Services table
+  $('pdfServicesBody').innerHTML = services.map(s => {
+    const total = s.qty * s.price;
+    return `
+      <tr>
+        <td>
+          <div class="pdf-prod-cell">
+            <div class="pdf-prod-info">
+              <span class="pdf-prod-name">${escapeHtml(s.name) || '—'}</span>
+              ${s.description ? `<div class="pdf-prod-desc">${escapeHtml(s.description)}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="center">${s.qty} ${escapeHtml(s.unit||'')}</td>
+        <td class="right">${fmt(s.price)} €</td>
+        <td class="right"><strong>${fmt(total)} €</strong></td>
+      </tr>
+    `;
+  }).join('');
+  
+  $('pdfNet').textContent = fmt(net) + ' €';
+  $('pdfVat').textContent = fmt(vat) + ' €';
+  $('pdfGrand').textContent = fmt(grand) + ' €';
+  
+  // Terms
+  const validUntilStr = gr(validUntil);
+  $('pdfTermsBody').innerHTML = terms.map(t => `
+    <div class="pdf-terms-row">
+      <span class="lbl">${escapeHtml(t.label)}</span>
+      <span class="val">${escapeHtml(
+        t.text.replace('{valid}', validUntilStr).replace('{days}', validityDays)
+      )}</span>
+    </div>
+  `).join('');
+}
+
+function renderAll(){
+  renderProducts();
+  renderServices();
+  renderTotals();
+  renderPDF();
+  scheduleSave();
+}
+
+// ─── Drawer (Recent Quotes) ─────────────────────────────────────────
+async function renderDrawer(filterText=''){
+  const body = $('drawerBody');
+  const quotes = await listQuotes();
+  
+  $('quoteCountInfo').textContent = quotes.length + (quotes.length === 1 ? ' προσφορά' : ' προσφορές');
+  
+  const filter = filterText.toLowerCase().trim();
+  const filtered = filter ? quotes.filter(q => 
+    (q.code||'').toLowerCase().includes(filter) ||
+    (q.client||'').toLowerCase().includes(filter) ||
+    (q.title||'').toLowerCase().includes(filter)
+  ) : quotes;
+  
+  if(filtered.length === 0){
+    body.innerHTML = '<div class="drawer-empty">' + (filter ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Καμία προσφορά ακόμη.<br>Φτιάξε την πρώτη και θα εμφανιστεί εδώ.') + '</div>';
+    return;
+  }
+  
+  body.innerHTML = filtered.map(q => {
+    const date = q.updatedAt ? gr(q.updatedAt) : '—';
+    const itemCount = (q.products||[]).length + (q.services||[]).length;
+    const isActive = q.id === currentQuoteId;
+    return `
+      <div class="quote-item ${isActive?'active':''}" data-id="${escapeHtml(q.id||'')}">
+        <div class="quote-meta">
+          <div class="quote-code">${escapeHtml(q.code||'')}</div>
+          <div class="quote-client ${q.client?'':'empty'}">${escapeHtml(q.client||'(χωρίς πελάτη)')}</div>
+          <div class="quote-info">
+            <span>${date}</span>
+            <span>·</span>
+            <span>${itemCount} ${itemCount===1?'γραμμή':'γραμμές'}</span>
+          </div>
+        </div>
+        <div class="quote-actions">
+          <div class="quote-total">${fmt(q.grand||0)} €</div>
+          <div class="quote-actions-row">
+            <button data-action="duplicate" title="Αντιγραφή">📋</button>
+            <button data-action="delete" class="del" title="Διαγραφή">🗑</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  body.querySelectorAll('.quote-item').forEach(item => {
+    const id = item.dataset.id;
+    
+    // Click on the meta area = load
+    item.querySelector('.quote-meta').addEventListener('click', async () => {
+      if(!isQuoteEmpty() && currentQuoteId !== id){
+        await saveCurrentQuote();  // save current before switching
+      }
+      const ok = await loadQuote(id);
+      if(ok){
+        closeDrawer();
+        toast('Φορτώθηκε: ' + (currentQuoteCode || id), 'success');
+      } else {
+        toast('Σφάλμα φόρτωσης', 'error');
+      }
+    });
+    
+    item.querySelector('[data-action="duplicate"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await duplicateQuote(id);
+      closeDrawer();
+    });
+    
+    item.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const q = filtered.find(x => x.id === id);
+      const label = (q && q.code) || id;
+      if(confirm('Διαγραφή της προσφοράς ' + label + '? Δεν αναιρείται.')){
+        await deleteQuote(id);
+        renderDrawer($('drawerSearch').value);
+        toast('Διαγράφηκε', 'success');
+      }
+    });
+  });
+}
+
+function openDrawer(){
+  $('drawer').classList.add('open');
+  $('drawerOverlay').classList.add('open');
+  $('drawerSearch').value = '';
+  renderDrawer('');
+  setTimeout(() => $('drawerSearch').focus(), 200);
+}
+
+function closeDrawer(){
+  $('drawer').classList.remove('open');
+  $('drawerOverlay').classList.remove('open');
+}
+
+// ─── Export / Import ────────────────────────────────────────────────
+async function exportAllQuotes(){
+  const quotes = await listQuotes();
+  const blob = new Blob([JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    version: '1.0',
+    quotes,
+  }, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ndt_quotes_backup_' + todayKey() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+  toast('Backup ' + quotes.length + ' προσφορών', 'success');
+}
+
+async function importQuotesFromFile(file){
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const quotes = Array.isArray(data) ? data : (data.quotes || []);
+    if(!quotes.length){ toast('Δεν βρέθηκαν προσφορές στο αρχείο', 'warn'); return; }
+    
+    let imported = 0, skipped = 0;
+    for(const q of quotes){
+      if(!q.id) q.id = newQuoteId();
+      try{
+        // Check if already exists
+        const existing = await Storage.get('quote:'+q.id);
+        if(existing){ skipped++; continue; }
+        await Storage.set('quote:'+q.id, JSON.stringify(q));
+        imported++;
+      }catch(e){
+        console.warn('skip', q.id, e);
+      }
+    }
+    toast('Έγινε import: ' + imported + ' (παράκαμψη: ' + skipped + ')', 'success');
+    renderDrawer('');
+  }catch(e){
+    console.error(e);
+    toast('Σφάλμα στο αρχείο', 'error');
+  }
+}
+
+// ─── Event Handlers ─────────────────────────────────────────────────
+$('addBtn').addEventListener('click', async () => {
+  const url = $('urlInput').value.trim();
+  const qty = parseInt($('qtyInput').value) || 1;
+  if(!url){
+    addEmptyProduct('', qty);
+    $('qtyInput').value = '1';
+    return;
+  }
+  try{ new URL(url); }catch(e){ toast('Μη έγκυρο URL', 'error'); return; }
+  await addProductFromURL(url, qty);
+  $('urlInput').value = '';
+  $('qtyInput').value = '1';
+});
+
+$('manualBtn').addEventListener('click', () => {
+  const qty = parseInt($('qtyInput').value) || 1;
+  addEmptyProduct('', qty);
+  $('qtyInput').value = '1';
+  // Scroll to last product card
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.product-card');
+    if(cards.length){
+      cards[cards.length-1].scrollIntoView({behavior:'smooth', block:'center'});
+      const firstInput = cards[cards.length-1].querySelector('input.name');
+      if(firstInput) firstInput.focus();
+    }
+  }, 100);
+});
+
+$('addServiceBtn').addEventListener('click', () => {
+  addService();
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.service-card');
+    if(cards.length){
+      cards[cards.length-1].scrollIntoView({behavior:'smooth', block:'center'});
+      const firstInput = cards[cards.length-1].querySelector('input.svc-name');
+      if(firstInput) firstInput.focus();
+    }
+  }, 100);
+});
+
+$('urlInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter') $('addBtn').click();
+});
+
+$('previewBtn').addEventListener('click', () => {
+  const out = $('pdfOutput');
+  out.classList.toggle('preview-on');
+  $('previewBtn').textContent = out.classList.contains('preview-on') ? '✕ Κλείσιμο Preview' : '👁 Preview';
+  if(out.classList.contains('preview-on')){
+    setTimeout(()=>out.scrollIntoView({behavior:'smooth'}), 100);
+  }
+});
+
+$('printBtn').addEventListener('click', async () => {
+  if(products.length === 0 && services.length === 0){
+    toast('Πρόσθεσε τουλάχιστον ένα προϊόν ή υπηρεσία πρώτα', 'warn');
+    return;
+  }
+  
+  // Determine code: keep existing if editing, generate new otherwise
+  let code;
+  const isNewQuote = !currentQuoteId || !currentQuoteCode;
+  
+  if(isNewQuote){
+    code = generateCode();
+    currentQuoteCode = code;
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+    await saveCurrentQuote();      // assigns currentQuoteId, persists
+    await incrementQuoteCounter(); // bump for next new quote
+  } else {
+    code = currentQuoteCode;
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+    await saveCurrentQuote();      // persist any pending edits
+  }
+  
+  renderPDF();
+  updateStatusBadge();
+  
+  // Set document.title so browser uses it as default PDF filename
+  const oldTitle = document.title;
+  document.title = code;
+  
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => {
+      document.title = oldTitle;
+      renderPDF();  // refresh UI with potentially-new code preview
+    }, 1000);
+  }, 100);
+});
+
+$('termsToggle').addEventListener('click', () => {
+  terms.push({label:'Νέος όρος', text:'...'});
+  saveTerms();
+  renderTerms();
+  renderPDF();
+  scheduleSave();
+});
+
+$('resetTermsBtn').addEventListener('click', () => {
+  if(confirm('Επαναφορά των default όρων;')){
+    terms = JSON.parse(JSON.stringify(DEFAULT_TERMS));
+    saveTerms();
+    renderTerms();
+    renderPDF();
+    scheduleSave();
+  }
+});
+
+$('footerToggle').addEventListener('click', () => {
+  const panel = $('footerSettings');
+  panel.classList.toggle('collapsed');
+  $('footerToggle').textContent = panel.classList.contains('collapsed') ? '▾ Εμφάνιση' : '▴ Απόκρυψη';
+});
+
+// Validity & title trigger PDF re-render
+['clientName','proposalTitle','validityDays','brandName','brandLocation','brandTagline','signerName','contactPhone','contactEmail','customProxy'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('input', () => {
+    renderPDF();
+    if(['brandName','brandLocation','brandTagline','signerName','contactPhone','contactEmail','customProxy'].includes(id)){
+      saveCfg(id, el.value);
+    }
+    // Quote-affecting fields trigger autosave
+    if(['clientName','proposalTitle','validityDays'].includes(id)){
+      scheduleSave();
+    }
+  });
+});
+
+// ─── Drawer / New / Backup handlers ────────────────────────────────
+$('recentBtn').addEventListener('click', openDrawer);
+$('drawerClose').addEventListener('click', closeDrawer);
+$('drawerOverlay').addEventListener('click', closeDrawer);
+
+$('drawerSearch').addEventListener('input', e => {
+  renderDrawer(e.target.value);
+});
+
+$('newBtn').addEventListener('click', () => {
+  if(!isQuoteEmpty()){
+    if(!confirm('Άνοιγμα νέας προσφοράς; (η τρέχουσα θα σωθεί στις Πρόσφατες)')) return;
+  }
+  newQuote();
+});
+
+$('exportBtn').addEventListener('click', exportAllQuotes);
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if(f) importQuotesFromFile(f);
+  e.target.value = '';
+});
+
+// Close drawer on Esc
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && $('drawer').classList.contains('open')){
+    closeDrawer();
+  }
+});
+
+// ─── Storage UI / Folder connection ─────────────────────────────────
+function updateStorageUI(){
+  const ind = $('storageIndicator');
+  const banner = $('storageBanner');
+  const bannerTitle = $('bannerTitle');
+  const bannerMsg = $('bannerMsg');
+  const bannerBtn = $('bannerActionBtn');
+  const bannerDismiss = $('bannerDismissBtn');
+  
+  const isFile = location.protocol === 'file:';
+  const dismissed = localStorage.getItem('storageBannerDismissed') === '1';
+  
+  if(Storage.mode === 'file'){
+    // Connected — green indicator, no banner
+    ind.className = 'storage-indicator connected';
+    ind.textContent = '📁 ' + (Storage.folderName || 'Folder');
+    ind.title = 'Συνδεδεμένος φάκελος: ' + Storage.folderName + ' (κλικ για επιλογές)';
+    banner.classList.add('hidden');
+    return;
+  }
+  
+  // Not connected — local mode
+  ind.className = 'storage-indicator local';
+  ind.textContent = '💾 Browser';
+  ind.title = 'Δεδομένα μόνο σε αυτόν τον browser. Κλικ για σύνδεση φακέλου.';
+  
+  if(dismissed){
+    banner.classList.add('hidden');
+    return;
+  }
+  
+  if(isFile){
+    // Cannot connect from file:// — explain
+    bannerTitle.textContent = 'Πρόσβαση μόνο από αυτόν τον browser';
+    bannerMsg.textContent = 'Επειδή το αρχείο τρέχει με file://, δεν μπορώ να σώσω σε φάκελο. Τα quotes σώζονται στο localStorage. Για multi-device, ανέβασε το HTML σε GitHub Pages.';
+    bannerBtn.style.display = 'none';
+    banner.classList.remove('hidden');
+    return;
+  }
+  
+  if(!Storage._hasFSA()){
+    // Browser doesn't support FSA (Firefox/Safari)
+    bannerTitle.textContent = 'Ο browser δεν υποστηρίζει σύνδεση φακέλου';
+    bannerMsg.textContent = 'Χρησιμοποίησε Chrome ή Edge για να σώζεις σε φάκελο. Τα quotes σώζονται στο localStorage σαν εναλλακτική.';
+    bannerBtn.style.display = 'none';
+    banner.classList.remove('hidden');
+    return;
+  }
+  
+  if(Storage.dirHandle){
+    // Have a saved handle but permission lapsed — offer reconnect
+    bannerTitle.textContent = 'Επανασύνδεση φακέλου: ' + Storage.folderName;
+    bannerMsg.textContent = 'Ο browser απαιτεί επιβεβαίωση πρόσβασης κάθε φορά που ξανανοίγεις. Πάτα για να επιβεβαιώσεις.';
+    bannerBtn.textContent = 'Επανασύνδεση';
+    bannerBtn.style.display = '';
+    banner.classList.remove('hidden');
+    return;
+  }
+  
+  // Fresh state — invite to connect
+  bannerTitle.textContent = 'Σύνδεσε φάκελο για multi-device sync';
+  bannerMsg.textContent = 'Τα δεδομένα θα σώζονται σε αρχεία μέσα στον φάκελο που θα διαλέξεις (π.χ. Drive folder). Έτσι έχεις πρόσβαση από όλους τους υπολογιστές σου.';
+  bannerBtn.textContent = 'Σύνδεση Φακέλου';
+  bannerBtn.style.display = '';
+  banner.classList.remove('hidden');
+}
+
+async function handleConnectFolder(){
+  if(!Storage._hasFSA()){ toast('Ο browser σου δεν υποστηρίζει επιλογή φακέλου', 'warn'); return; }
+  
+  try{
+    if(Storage.dirHandle && Storage.mode !== 'file'){
+      // Try reconnect first
+      const ok = await Storage.reconnectFolder();
+      if(ok){
+        toast('Επανασυνδέθηκε: ' + Storage.folderName, 'success');
+        updateStorageUI();
+        await reloadAllData();
+        return;
+      }
+    }
+    
+    await Storage.connectFolder();
+    toast('Συνδέθηκε: ' + Storage.folderName, 'success');
+    
+    // Offer migration if there's data in localStorage
+    const localKeys = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && (k.startsWith('quote:') || k.startsWith('cfg:') || k === 'terms' || k === 'quoteCounter')){
+        localKeys.push(k);
+      }
+    }
+    
+    if(localKeys.length > 0){
+      if(confirm('Βρέθηκαν ' + localKeys.length + ' αντικείμενα στον browser. Να μεταφερθούν στον φάκελο;\n\n(Συνιστάται: ναι)')){
+        const r = await migrateLocalToFolder();
+        toast('Μεταφέρθηκαν ' + r.migrated + '/' + r.total + ' αντικείμενα', 'success');
+      }
+    }
+    
+    updateStorageUI();
+    await reloadAllData();
+    
+  }catch(e){
+    console.error(e);
+    if(e && e.name === 'AbortError'){
+      // User cancelled the picker — silent
+    } else if(String(e).includes('permission-denied')){
+      toast('Δεν δόθηκε δικαίωμα. Ξαναπροσπάθησε.', 'error');
+    } else {
+      toast('Σφάλμα σύνδεσης: ' + (e.message || e), 'error');
+    }
+  }
+}
+
+async function handleDisconnectFolder(){
+  if(!confirm('Αποσύνδεση φακέλου;\n\nΤα αρχεία ΔΕΝ θα διαγραφούν από τον φάκελο, αλλά το app θα γυρίσει σε browser-only mode.')) return;
+  await Storage.disconnectFolder();
+  toast('Αποσυνδέθηκε ο φάκελος', 'success');
+  updateStorageUI();
+  // Reload from localStorage if anything's there
+  await reloadAllData();
+}
+
+// Reload terms + drawer + state after switching storage backend
+async function reloadAllData(){
+  // Reload terms from new storage
+  try{
+    const t = await Storage.get('terms');
+    if(t) terms = JSON.parse(t.value);
+  }catch(e){}
+  // Reload counter
+  try{
+    const c = await Storage.get('quoteCounter');
+    if(c && c.value) quoteCounter = JSON.parse(c.value);
+  }catch(e){}
+  // Reset current quote — user can pick from drawer
+  currentQuoteId = null;
+  currentQuoteCode = null;
+  isLoadingQuote = true;
+  products = [];
+  services = [];
+  $('clientName').value = '';
+  $('proposalTitle').value = '';
+  $('validityDays').value = '14';
+  renderTerms();
+  renderAll();
+  updateStatusBadge();
+  isLoadingQuote = false;
+}
+
+// Wire up storage UI events
+$('storageIndicator').addEventListener('click', () => {
+  if(Storage.mode === 'file'){
+    // Show options for connected folder
+    const choice = prompt('Συνδεδεμένος φάκελος: ' + Storage.folderName + '\n\nΓράψε:\n- "αλλαγή" για να επιλέξεις άλλο φάκελο\n- "αποσύνδεση" για επιστροφή σε browser-only\n- κενό για ακύρωση', '');
+    if(!choice) return;
+    if(choice.toLowerCase().includes('αλλαγή') || choice.toLowerCase().includes('change')){
+      // Disconnect and reconnect
+      Storage.disconnectFolder().then(handleConnectFolder);
+    } else if(choice.toLowerCase().includes('αποσύνδ') || choice.toLowerCase().includes('disconnect')){
+      handleDisconnectFolder();
+    }
+  } else {
+    handleConnectFolder();
+  }
+});
+
+$('bannerActionBtn').addEventListener('click', handleConnectFolder);
+
+$('bannerDismissBtn').addEventListener('click', () => {
+  localStorage.setItem('storageBannerDismissed', '1');
+  $('storageBanner').classList.add('hidden');
+});
+
+// ─── Init ──────────────────────────────────────────────────────────
+(async () => {
+  await Storage.init();
+  await loadSettings();
+  renderTerms();
+  renderAll();
+  updateStatusBadge();
+  updateStorageUI();
+})();
+</script>
+</body>
+</html>
