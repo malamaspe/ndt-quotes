@@ -466,7 +466,7 @@ label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-trans
     </div>
     <div class="actions">
       <button class="btn" id="previewBtn">👁 Preview</button>
-      <button class="btn btn-print" id="printBtn">🖨 Εκτύπωση PDF</button>
+      <button class="btn btn-print" id="printBtn">💾 Αποθήκευση PDF</button>
     </div>
   </div>
 
@@ -1382,6 +1382,12 @@ function updateProduct(id, field, value){
   if(field === 'qty' || field === 'price'){
     const n = parseFloat(String(value).replace(',','.'));
     p[field] = isNaN(n) ? 0 : n;
+    // Refresh inline line total without re-rendering whole card
+    const card = document.querySelector('.product-card[data-id="' + id + '"]');
+    if(card){
+      const lt = card.querySelector('.line-total');
+      if(lt) lt.textContent = fmt(p.qty * p.price) + ' €';
+    }
   } else {
     p[field] = value;
   }
@@ -1418,6 +1424,11 @@ function updateService(id, field, value){
   if(field === 'qty' || field === 'price'){
     const n = parseFloat(String(value).replace(',','.'));
     s[field] = isNaN(n) ? 0 : n;
+    const card = document.querySelector('.service-card[data-id="' + id + '"]');
+    if(card){
+      const lt = card.querySelector('.line-total');
+      if(lt) lt.textContent = fmt(s.qty * s.price) + ' €';
+    }
   } else {
     s[field] = value;
   }
@@ -1886,43 +1897,433 @@ $('previewBtn').addEventListener('click', () => {
   }
 });
 
-$('printBtn').addEventListener('click', async () => {
+// ─── PDF Generation (jsPDF — programmatic vector PDF) ──────────────
+// Lazy-loads jsPDF + autoTable + Roboto Greek font from CDN on first use.
+// Solves: clickable links, controlled filename, direct save to Drive folder.
+
+const PDF_DEPS = [
+  'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js',
+];
+const FONT_REG_URL = 'https://cdn.jsdelivr.net/gh/google/fonts@main/apache/roboto/static/Roboto-Regular.ttf';
+const FONT_BOLD_URL = 'https://cdn.jsdelivr.net/gh/google/fonts@main/apache/roboto/static/Roboto-Bold.ttf';
+
+let _pdfReady = false;
+let _fontRegB64 = null;
+let _fontBoldB64 = null;
+
+function _loadScript(src){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Script load failed: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function _fetchAsBase64(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Fetch failed (' + res.status + '): ' + url);
+  const buf = await res.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 8192;
+  for(let i = 0; i < bytes.length; i += chunk){
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function loadPdfLibs(){
+  if(_pdfReady) return;
+  for(const url of PDF_DEPS){
+    if(!window.jspdf || (url.includes('autotable') && !window.jspdf.jsPDF.API.autoTable)){
+      await _loadScript(url);
+    }
+  }
+  // Fonts (parallel)
+  const [reg, bold] = await Promise.all([
+    _fetchAsBase64(FONT_REG_URL),
+    _fetchAsBase64(FONT_BOLD_URL),
+  ]);
+  _fontRegB64 = reg;
+  _fontBoldB64 = bold;
+  _pdfReady = true;
+}
+
+async function generatePDF(){
+  await loadPdfLibs();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
+  
+  // Register Greek-supporting font
+  doc.addFileToVFS('Roboto-Regular.ttf', _fontRegB64);
+  doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+  doc.addFileToVFS('Roboto-Bold.ttf', _fontBoldB64);
+  doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+  doc.setFont('Roboto', 'normal');
+  
+  // Palette (matches HTML preview)
+  const ORANGE = [255, 106, 0];
+  const INK    = [17, 17, 17];
+  const MUTED  = [107, 114, 128];
+  const BORDER = [229, 229, 229];
+  const SOFT   = [247, 245, 242];
+  const WHITE  = [255, 255, 255];
+  
+  const PAGE_W = 210, PAGE_H = 297;
+  const M = 20;          // outer margin
+  const CW = PAGE_W - 2*M; // content width
+  
+  // ── Compute totals ──
+  const productsTotal = products.reduce((s,p)=>s+p.qty*p.price, 0);
+  const servicesTotal = services.reduce((s,x)=>s+x.qty*x.price, 0);
+  const grand = productsTotal + servicesTotal;
+  const net   = grand / 1.24;
+  const vat   = grand - net;
+  
+  // ── Meta ──
+  const code = currentQuoteCode || generateCode();
+  const today = new Date();
+  const validityDays = parseInt($('validityDays').value) || 14;
+  const validUntil = addDays(validityDays);
+  const validUntilStr = gr(validUntil);
+  
+  // ── Header bar (orange) ──
+  doc.setFillColor(...ORANGE);
+  doc.rect(0, 0, PAGE_W, 16, 'F');
+  doc.setTextColor(...WHITE);
+  doc.setFont('Roboto', 'bold');
+  doc.setFontSize(13);
+  doc.text('NDT', M, 10);
+  doc.setFont('Roboto', 'normal');
+  doc.setFontSize(8.5);
+  doc.text('EVENT PRODUCTION', M + 13, 10);
+  doc.setFontSize(8);
+  doc.text(code, PAGE_W - M, 10, {align:'right'});
+  
+  // ── Title ──
+  let y = 30;
+  doc.setTextColor(...INK);
+  doc.setFont('Roboto', 'bold');
+  doc.setFontSize(22);
+  doc.text($('proposalTitle').value || 'Πρόταση Εξοπλισμού', M, y);
+  y += 8;
+  
+  // ── Meta row (3 columns) ──
+  const cw = CW / 3;
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.setFont('Roboto', 'normal');
+  doc.text('Ημερομηνία', M, y);
+  doc.text('Ισχύς προσφοράς έως', M + cw, y);
+  doc.text('Κωδικός', M + 2*cw, y);
+  y += 4;
+  doc.setTextColor(...INK);
+  doc.setFont('Roboto', 'bold');
+  doc.setFontSize(10);
+  doc.text(gr(today), M, y);
+  doc.text(validUntilStr, M + cw, y);
+  doc.text(code, M + 2*cw, y);
+  y += 8;
+  
+  // ── Client (optional) ──
+  const client = $('clientName').value.trim();
+  if(client){
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.setFont('Roboto', 'normal');
+    doc.text('Προς', M, y);
+    y += 4;
+    doc.setTextColor(...INK);
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(11);
+    doc.text(client, M, y);
+    y += 7;
+  }
+  
+  // ── Products table ──
+  if(products.length){
+    doc.setFontSize(8);
+    doc.setTextColor(...ORANGE);
+    doc.setFont('Roboto', 'normal');
+    doc.text('ΕΞΟΠΛΙΣΜΟΣ', M, y);
+    y += 2;
+    
+    const body = products.map(p => {
+      const total = p.qty * p.price;
+      const nameCell = p.description ? (p.name + '\n' + p.description) : p.name;
+      return [nameCell, p.qty.toString(), fmt(p.price) + ' €', fmt(total) + ' €'];
+    });
+    
+    doc.autoTable({
+      startY: y,
+      head: [['Προϊόν','Ποσ.','Τιμή/τμχ','Σύνολο']],
+      body: body,
+      styles: {font:'Roboto', fontSize:10, cellPadding:2.5, lineColor:BORDER, lineWidth:0.1, textColor:INK},
+      headStyles: {font:'Roboto', fontStyle:'normal', fontSize:9, fillColor:SOFT, textColor:[68,68,68], lineWidth:0.1, lineColor:BORDER},
+      columnStyles: {
+        0: {cellWidth:'auto', fontStyle:'bold'},
+        1: {cellWidth:18, halign:'center', fontStyle:'normal'},
+        2: {cellWidth:25, halign:'right', fontStyle:'normal'},
+        3: {cellWidth:30, halign:'right', fontStyle:'bold'},
+      },
+      margin: {left:M, right:M},
+      didParseCell: (data) => {
+        // First line of name cell = bold name, second line = muted description
+        if(data.section === 'body' && data.column.index === 0){
+          const p = products[data.row.index];
+          if(p && p.description){
+            // Custom cell rendering needed for two-line format
+            data.cell.styles.fontStyle = 'normal';
+          }
+        }
+      },
+      didDrawCell: (data) => {
+        // Vector link annotation over product name cell
+        if(data.section === 'body' && data.column.index === 0){
+          const p = products[data.row.index];
+          if(p && p.url){
+            doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, {url: p.url});
+          }
+          // Render two-line styled text manually if has description
+          if(p && p.description){
+            // Clear default cell rendering and redo with styled lines
+            doc.setFillColor(...WHITE);
+            doc.rect(data.cell.x + 0.2, data.cell.y + 0.2, data.cell.width - 0.4, data.cell.height - 0.4, 'F');
+            doc.setFont('Roboto', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(...(p.url ? ORANGE : INK));
+            doc.text(p.name, data.cell.x + 2.5, data.cell.y + 4);
+            doc.setFont('Roboto', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(...MUTED);
+            const desc = doc.splitTextToSize(p.description, data.cell.width - 5);
+            doc.text(desc[0] || '', data.cell.x + 2.5, data.cell.y + 8);
+            // Restore for next cell
+            doc.setTextColor(...INK);
+          } else if(p && p.url){
+            // Just url, no description — recolor name orange
+            doc.setFillColor(...WHITE);
+            doc.rect(data.cell.x + 0.2, data.cell.y + 0.2, data.cell.width - 0.4, data.cell.height - 0.4, 'F');
+            doc.setFont('Roboto', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(...ORANGE);
+            doc.text(p.name, data.cell.x + 2.5, data.cell.y + data.cell.height/2 + 1);
+            doc.setTextColor(...INK);
+          }
+        }
+      },
+    });
+    y = doc.lastAutoTable.finalY + 5;
+  }
+  
+  // ── Services table ──
+  if(services.length){
+    doc.setFontSize(8);
+    doc.setTextColor(...ORANGE);
+    doc.setFont('Roboto', 'normal');
+    doc.text('ΥΠΗΡΕΣΙΕΣ', M, y);
+    y += 2;
+    
+    const body = services.map(s => {
+      const total = s.qty * s.price;
+      const nameCell = s.description ? ((s.name || '—') + '\n' + s.description) : (s.name || '—');
+      return [nameCell, s.qty + ' ' + (s.unit||''), fmt(s.price) + ' €', fmt(total) + ' €'];
+    });
+    
+    doc.autoTable({
+      startY: y,
+      head: [['Υπηρεσία','Ποσ.','Τιμή','Σύνολο']],
+      body: body,
+      styles: {font:'Roboto', fontSize:10, cellPadding:2.5, lineColor:BORDER, lineWidth:0.1, textColor:INK},
+      headStyles: {font:'Roboto', fontStyle:'normal', fontSize:9, fillColor:SOFT, textColor:[68,68,68], lineWidth:0.1, lineColor:BORDER},
+      columnStyles: {
+        0: {cellWidth:'auto', fontStyle:'bold'},
+        1: {cellWidth:22, halign:'center', fontStyle:'normal'},
+        2: {cellWidth:25, halign:'right', fontStyle:'normal'},
+        3: {cellWidth:30, halign:'right', fontStyle:'bold'},
+      },
+      margin: {left:M, right:M},
+    });
+    y = doc.lastAutoTable.finalY + 5;
+  }
+  
+  // ── Totals (right) ──
+  doc.setFontSize(10);
+  doc.setTextColor(...INK);
+  doc.setFont('Roboto', 'normal');
+  doc.text('Καθαρή αξία', PAGE_W - M - 35, y, {align:'right'});
+  doc.setFont('Roboto', 'bold');
+  doc.text(fmt(net) + ' €', PAGE_W - M, y, {align:'right'});
+  y += 5;
+  doc.setFont('Roboto', 'normal');
+  doc.text('ΦΠΑ 24%', PAGE_W - M - 35, y, {align:'right'});
+  doc.setFont('Roboto', 'bold');
+  doc.text(fmt(vat) + ' €', PAGE_W - M, y, {align:'right'});
+  y += 4;
+  
+  // ── Grand total band ──
+  doc.setFillColor(...ORANGE);
+  doc.rect(M, y, CW, 12, 'F');
+  doc.setTextColor(...WHITE);
+  doc.setFont('Roboto', 'bold');
+  doc.setFontSize(12);
+  doc.text('ΓΕΝΙΚΟ ΣΥΝΟΛΟ', M + 4, y + 7.5);
+  doc.setFontSize(8);
+  doc.setFont('Roboto', 'normal');
+  doc.text('(με ΦΠΑ)', M + 50, y + 7.5);
+  doc.setFont('Roboto', 'bold');
+  doc.setFontSize(14);
+  doc.text(fmt(grand) + ' €', PAGE_W - M - 4, y + 8, {align:'right'});
+  y += 17;
+  
+  // ── VAT note ──
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.setFont('Roboto', 'normal');
+  doc.text('Όλες οι αναγραφόμενες τιμές περιλαμβάνουν ΦΠΑ 24%.', M, y);
+  y += 7;
+  
+  // ── Terms ──
+  if(terms.length){
+    doc.setFontSize(8);
+    doc.setTextColor(...ORANGE);
+    doc.setFont('Roboto', 'normal');
+    doc.text('ΟΡΟΙ ΠΡΟΣΦΟΡΑΣ', M, y);
+    y += 4;
+    
+    doc.setFontSize(9);
+    doc.setTextColor(...INK);
+    const labelW = 38;
+    for(const t of terms){
+      const text = (t.text || '').replace('{valid}', validUntilStr).replace('{days}', validityDays);
+      const wrapped = doc.splitTextToSize(text, CW - labelW - 2);
+      doc.setFont('Roboto', 'bold');
+      doc.text(t.label || '', M, y);
+      doc.setFont('Roboto', 'normal');
+      doc.text(wrapped, M + labelW, y);
+      // Underline separator
+      const rowH = Math.max(5, wrapped.length * 4);
+      y += rowH;
+      doc.setDrawColor(...BORDER);
+      doc.setLineWidth(0.1);
+      doc.line(M, y - 1, PAGE_W - M, y - 1);
+      y += 1;
+    }
+    y += 4;
+  }
+  
+  // ── Closing line ──
+  doc.setFontSize(9);
+  doc.setTextColor(...INK);
+  doc.setFont('Roboto', 'normal');
+  const line1 = 'Παραμένουμε στη διάθεσή σας για διευκρινίσεις. — ';
+  doc.text(line1, M, y);
+  const w1 = doc.getTextWidth(line1);
+  doc.setFont('Roboto', 'bold');
+  const signer = $('signerName').value || 'Πέτρος Μάλαμας';
+  doc.text(signer, M + w1, y);
+  const w2 = doc.getTextWidth(signer);
+  doc.setFont('Roboto', 'normal');
+  doc.setTextColor(...MUTED);
+  doc.text(' · ' + ($('brandName').value || 'NDT Event Production'), M + w1 + w2, y);
+  
+  // ── Footer (always at bottom) ──
+  const fy = PAGE_H - 12;
+  doc.setDrawColor(...BORDER);
+  doc.setLineWidth(0.2);
+  doc.line(M, fy, PAGE_W - M, fy);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.setFont('Roboto', 'normal');
+  doc.text(($('brandName').value || 'NDT Event Production') + ' · ' + ($('brandLocation').value || 'Θεσσαλονίκη'), M, fy + 4);
+  doc.setFontSize(7);
+  doc.setTextColor(...ORANGE);
+  doc.text($('brandTagline').value || 'AV · LIVE · CORPORATE', M, fy + 7.5);
+  
+  // Contact in footer right
+  const phone = $('contactPhone').value.trim();
+  const email = $('contactEmail').value.trim();
+  const contact = [phone, email].filter(Boolean).join(' · ');
+  if(contact){
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text(contact, PAGE_W - M, fy + 4, {align:'right'});
+  }
+  
+  return doc;
+}
+
+async function savePDF(){
   if(products.length === 0 && services.length === 0){
     toast('Πρόσθεσε τουλάχιστον ένα προϊόν ή υπηρεσία πρώτα', 'warn');
     return;
   }
   
-  // Determine code: keep existing if editing, generate new otherwise
-  let code;
-  const isNewQuote = !currentQuoteId || !currentQuoteCode;
+  const btn = $('printBtn');
+  const oldLabel = btn.innerHTML;
+  btn.innerHTML = '⏳ Δημιουργία PDF...';
+  btn.disabled = true;
   
-  if(isNewQuote){
-    code = generateCode();
-    currentQuoteCode = code;
-    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
-    await saveCurrentQuote();      // assigns currentQuoteId, persists
-    await incrementQuoteCounter(); // bump for next new quote
-  } else {
-    code = currentQuoteCode;
-    if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
-    await saveCurrentQuote();      // persist any pending edits
+  try{
+    // Determine code (preserve if editing existing quote)
+    const isNewQuote = !currentQuoteId || !currentQuoteCode;
+    let code;
+    
+    if(isNewQuote){
+      code = generateCode();
+      currentQuoteCode = code;
+      if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+      await saveCurrentQuote();
+      await incrementQuoteCounter();
+    } else {
+      code = currentQuoteCode;
+      if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+      await saveCurrentQuote();
+    }
+    
+    renderPDF();
+    updateStatusBadge();
+    
+    // Safe filename
+    const filename = code.replace(/[^a-zA-Z0-9_-]/g, '_') + '.pdf';
+    
+    // Generate (may be slow first time due to font fetch)
+    const doc = await generatePDF();
+    
+    if(Storage.mode === 'file' && Storage.dirHandle){
+      // Save directly into connected Drive folder
+      const blob = doc.output('blob');
+      const fileHandle = await Storage.dirHandle.getFileHandle(filename, {create:true});
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      toast('💾 Σώθηκε στον φάκελο: ' + filename, 'success');
+    } else {
+      // Download with proper filename
+      doc.save(filename);
+      toast('📥 Κατέβηκε: ' + filename, 'success');
+    }
+  }catch(e){
+    console.error('PDF save failed', e);
+    const msg = String(e.message || e);
+    if(msg.includes('Fetch failed') || msg.includes('Script load failed')){
+      toast('⚠️ Δεν φόρτωσαν τα PDF libraries. Χρησιμοποιείς internet; Δοκίμασε print fallback.', 'error');
+      // Fallback: window.print()
+      document.title = (currentQuoteCode || generateCode());
+      setTimeout(() => window.print(), 300);
+    } else {
+      toast('Σφάλμα: ' + msg.slice(0, 200), 'error');
+    }
+  } finally {
+    btn.innerHTML = oldLabel;
+    btn.disabled = false;
   }
-  
-  renderPDF();
-  updateStatusBadge();
-  
-  // Set document.title so browser uses it as default PDF filename
-  const oldTitle = document.title;
-  document.title = code;
-  
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      document.title = oldTitle;
-      renderPDF();  // refresh UI with potentially-new code preview
-    }, 1000);
-  }, 100);
-});
+}
+
+$('printBtn').addEventListener('click', savePDF);
 
 $('termsToggle').addEventListener('click', () => {
   terms.push({label:'Νέος όρος', text:'...'});
